@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
   getGatewayUrl,
+  getGatewayToken,
   getClient,
   resetClient,
   fetchHealth,

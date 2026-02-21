@@ -1,21 +1,30 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getGatewayUrl, setGatewayUrl, testConnection } from "@/lib/gateway-client";
+import { 
+  getGatewayUrl, 
+  setGatewayUrl, 
+  getGatewayToken, 
+  setGatewayToken, 
+  testConnection 
+} from "@/lib/gateway-client";
 
 const DEFAULT_GATEWAY = "wss://reimini-macmini.tailfa1d9d.ts.net";
 
 export default function SettingsModal({ onClose }: { onClose: () => void }) {
   const [url, setUrl] = useState(DEFAULT_GATEWAY);
+  const [token, setToken] = useState("");
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<"ok" | "fail" | null>(null);
 
   useEffect(() => {
     setUrl(getGatewayUrl());
+    setToken(getGatewayToken());
   }, []);
 
   const handleSave = () => {
     setGatewayUrl(url);
+    setGatewayToken(token);
     onClose();
   };
 
@@ -23,7 +32,7 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
     setTesting(true);
     setTestResult(null);
     try {
-      const ok = await testConnection(url);
+      const ok = await testConnection(url, token);
       setTestResult(ok ? "ok" : "fail");
     } catch {
       setTestResult("fail");
@@ -41,7 +50,7 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
         className="bg-[var(--card-bg)] border border-[var(--border)] rounded-lg w-[420px] p-5"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="text-sm font-bold text-white mb-4">⚙️ Settings</h2>
+        <h2 className="text-sm font-bold text-white mb-4">⚙️ Gateway Settings</h2>
 
         <label className="block text-xs text-[var(--text-muted)] mb-1.5">
           Gateway WebSocket URL
@@ -54,8 +63,19 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
           className="w-full px-3 py-2 text-xs rounded-md bg-[var(--bg)] border border-[var(--border)] text-[var(--text)] focus:outline-none focus:border-[var(--accent)] mb-3"
         />
 
+        <label className="block text-xs text-[var(--text-muted)] mb-1.5">
+          Auth Token
+        </label>
+        <input
+          type="password"
+          value={token}
+          onChange={(e) => setToken(e.target.value)}
+          placeholder="Gateway auth token"
+          className="w-full px-3 py-2 text-xs rounded-md bg-[var(--bg)] border border-[var(--border)] text-[var(--text)] focus:outline-none focus:border-[var(--accent)] mb-3 font-mono"
+        />
+
         <p className="text-[10px] text-[var(--text-muted)] mb-3">
-          Use <code>wss://</code> for Tailscale URLs or <code>ws://localhost:18789</code> for local.
+          Token: <code>openclaw.json → gateway.auth.token</code>
         </p>
 
         <div className="flex items-center gap-2 mb-4">

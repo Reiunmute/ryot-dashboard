@@ -2,6 +2,7 @@
 
 const DEFAULT_GATEWAY = "wss://reimini-macmini.tailfa1d9d.ts.net";
 const STORAGE_KEY = "openclaw-gateway-url";
+const TOKEN_KEY = "openclaw-gateway-token";
 
 export function getGatewayUrl(): string {
   if (typeof window === "undefined") return DEFAULT_GATEWAY;
@@ -11,6 +12,17 @@ export function getGatewayUrl(): string {
 export function setGatewayUrl(url: string): void {
   if (typeof window === "undefined") return;
   localStorage.setItem(STORAGE_KEY, url);
+  window.dispatchEvent(new Event("gateway-url-changed"));
+}
+
+export function getGatewayToken(): string {
+  if (typeof window === "undefined") return "";
+  return localStorage.getItem(TOKEN_KEY) || "";
+}
+
+export function setGatewayToken(token: string): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(TOKEN_KEY, token);
   window.dispatchEvent(new Event("gateway-url-changed"));
 }
 
@@ -31,12 +43,14 @@ interface RpcResponse {
 export class GatewayClient {
   private ws: WebSocket | null = null;
   private url: string;
+  private token: string;
   private requestId = 0;
   private pending: Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }> = new Map();
   private connectPromise: Promise<void> | null = null;
 
-  constructor(url?: string) {
+  constructor(url?: string, token?: string) {
     this.url = url || getGatewayUrl();
+    this.token = token || getGatewayToken();
   }
 
   async connect(): Promise<void> {
@@ -45,7 +59,13 @@ export class GatewayClient {
 
     this.connectPromise = new Promise((resolve, reject) => {
       try {
-        this.ws = new WebSocket(this.url);
+        // Add token as query param if provided
+        let wsUrl = this.url;
+        if (this.token) {
+          const separator = wsUrl.includes("?") ? "&" : "?";
+          wsUrl = `${wsUrl}${separator}token=${encodeURIComponent(this.token)}`;
+        }
+        this.ws = new WebSocket(wsUrl);
 
         this.ws.onopen = () => {
           this.connectPromise = null;
@@ -216,8 +236,8 @@ export async function fetchCrons() {
   }>("cron.list");
 }
 
-export async function testConnection(url: string): Promise<boolean> {
-  const testClient = new GatewayClient(url);
+export async function testConnection(url: string, token?: string): Promise<boolean> {
+  const testClient = new GatewayClient(url, token);
   try {
     await testClient.connect();
     await testClient.call("health");

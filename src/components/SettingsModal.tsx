@@ -1,14 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { getGatewayUrl, setGatewayUrl, testConnection } from "@/lib/gateway-client";
 
-const DEFAULT_GATEWAY = "http://localhost:18789";
-const STORAGE_KEY = "openclaw-gateway-url";
-
-export function getGatewayUrl(): string {
-  if (typeof window === "undefined") return DEFAULT_GATEWAY;
-  return localStorage.getItem(STORAGE_KEY) || DEFAULT_GATEWAY;
-}
+const DEFAULT_GATEWAY = "wss://reimini-macmini.tailfa1d9d.ts.net";
 
 export default function SettingsModal({ onClose }: { onClose: () => void }) {
   const [url, setUrl] = useState(DEFAULT_GATEWAY);
@@ -20,8 +15,7 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
   }, []);
 
   const handleSave = () => {
-    localStorage.setItem(STORAGE_KEY, url);
-    window.dispatchEvent(new Event("gateway-url-changed"));
+    setGatewayUrl(url);
     onClose();
   };
 
@@ -29,9 +23,8 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
     setTesting(true);
     setTestResult(null);
     try {
-      const res = await fetch(`/api/gateway-health?gateway=${encodeURIComponent(url)}`);
-      const data = await res.json();
-      setTestResult(data.ok ? "ok" : "fail");
+      const ok = await testConnection(url);
+      setTestResult(ok ? "ok" : "fail");
     } catch {
       setTestResult("fail");
     } finally {
@@ -40,14 +33,19 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+      onClick={onClose}
+    >
       <div
         className="bg-[var(--card-bg)] border border-[var(--border)] rounded-lg w-[420px] p-5"
         onClick={(e) => e.stopPropagation()}
       >
         <h2 className="text-sm font-bold text-white mb-4">⚙️ Settings</h2>
 
-        <label className="block text-xs text-[var(--text-muted)] mb-1.5">Gateway URL</label>
+        <label className="block text-xs text-[var(--text-muted)] mb-1.5">
+          Gateway WebSocket URL
+        </label>
         <input
           type="text"
           value={url}
@@ -55,6 +53,10 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
           placeholder={DEFAULT_GATEWAY}
           className="w-full px-3 py-2 text-xs rounded-md bg-[var(--bg)] border border-[var(--border)] text-[var(--text)] focus:outline-none focus:border-[var(--accent)] mb-3"
         />
+
+        <p className="text-[10px] text-[var(--text-muted)] mb-3">
+          Use <code>wss://</code> for Tailscale URLs or <code>ws://localhost:18789</code> for local.
+        </p>
 
         <div className="flex items-center gap-2 mb-4">
           <button
@@ -90,3 +92,6 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
     </div>
   );
 }
+
+// Re-export for backward compatibility
+export { getGatewayUrl } from "@/lib/gateway-client";

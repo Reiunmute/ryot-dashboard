@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
 import { TABS, TabId } from "@/lib/constants";
-import SettingsModal, { getGatewayUrl } from "./SettingsModal";
+import SettingsModal from "./SettingsModal";
+import { useGateway } from "@/lib/use-gateway";
 
 export default function Sidebar({
   active,
@@ -12,36 +13,36 @@ export default function Sidebar({
   onSelect: (t: TabId) => void;
 }) {
   const [showSettings, setShowSettings] = useState(false);
-  const [connected, setConnected] = useState<boolean | null>(null);
+  const { connected, connecting, error, lastUpdated } = useGateway(30000);
 
-  const checkConnection = useCallback(async () => {
-    try {
-      const gw = getGatewayUrl();
-      const res = await fetch(`/api/gateway-health?gateway=${encodeURIComponent(gw)}`);
-      const data = await res.json();
-      setConnected(!!data.ok);
-    } catch {
-      setConnected(false);
+  const getStatusColor = () => {
+    if (connecting) return "bg-yellow-400 animate-pulse";
+    if (connected) return "bg-green-400";
+    return "bg-red-400";
+  };
+
+  const getStatusText = () => {
+    if (connecting) return "Connecting...";
+    if (connected) {
+      if (lastUpdated) {
+        const ago = Math.floor((Date.now() - lastUpdated) / 1000);
+        return ago < 60 ? "Connected" : `Updated ${Math.floor(ago / 60)}m ago`;
+      }
+      return "Connected";
     }
-  }, []);
-
-  useEffect(() => {
-    checkConnection();
-    const interval = setInterval(checkConnection, 30000);
-    const onChanged = () => checkConnection();
-    window.addEventListener("gateway-url-changed", onChanged);
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener("gateway-url-changed", onChanged);
-    };
-  }, [checkConnection]);
+    return error ? `Error: ${error.slice(0, 20)}...` : "Disconnected";
+  };
 
   return (
     <>
       <nav className="w-52 shrink-0 bg-[var(--sidebar-bg)] flex flex-col border-r border-[var(--border)]">
         <div className="px-4 py-3.5 border-b border-[var(--border)]">
-          <h1 className="text-sm font-bold tracking-tight text-white">🤖 Ryot Dashboard</h1>
-          <p className="text-[10px] text-[var(--text-muted)] mt-0.5">Agent Team Manager</p>
+          <h1 className="text-sm font-bold tracking-tight text-white">
+            🤖 Ryot Dashboard
+          </h1>
+          <p className="text-[10px] text-[var(--text-muted)] mt-0.5">
+            Agent Team Manager
+          </p>
         </div>
         <div className="flex-1 py-2 px-1.5">
           {TABS.map((tab) => (
@@ -61,17 +62,9 @@ export default function Sidebar({
         </div>
         <div className="px-3 py-2.5 border-t border-[var(--border)] flex items-center justify-between">
           <div className="flex items-center gap-1.5">
-            <span
-              className={`inline-block w-2 h-2 rounded-full ${
-                connected === null
-                  ? "bg-gray-500"
-                  : connected
-                  ? "bg-green-400"
-                  : "bg-red-400"
-              }`}
-            />
-            <span className="text-[10px] text-[var(--text-muted)]">
-              {connected === null ? "Checking..." : connected ? "Connected" : "Disconnected"}
+            <span className={`inline-block w-2 h-2 rounded-full ${getStatusColor()}`} />
+            <span className="text-[10px] text-[var(--text-muted)] truncate max-w-[120px]">
+              {getStatusText()}
             </span>
           </div>
           <button

@@ -1,7 +1,6 @@
 "use client";
 import AgentStatus from "@/components/AgentStatus";
-import { useCronJobs, useHealth, useAgentStatus } from "@/lib/hooks";
-import { mutate } from "swr";
+import { useGateway } from "@/lib/use-gateway";
 
 function formatTime(ms: number) {
   const d = new Date(ms);
@@ -14,89 +13,107 @@ function formatDuration(ms: number) {
 }
 
 export default function OpsTab() {
-  const { data: cronData, isLoading: cronLoading } = useCronJobs();
-  const { data: healthData, isLoading: healthLoading } = useHealth();
-
-  const jobs = cronData?.jobs || [];
+  const { crons, connected, connecting, error, refresh, lastUpdated, gatewayUrl } = useGateway(30000);
 
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold text-white">⚙️ Ops</h2>
-        <button onClick={() => { mutate("/api/agents/status"); mutate("/api/cron"); mutate("/api/health"); }} className="px-2 py-1 text-xs hover:bg-white/10 rounded-lg transition-colors" title="새로고침">🔄</button>
+        <button
+          onClick={refresh}
+          className="px-2 py-1 text-xs hover:bg-white/10 rounded-lg transition-colors"
+          title="새로고침"
+        >
+          🔄
+        </button>
       </div>
+
       <section>
         <h2 className="text-xl font-semibold mb-4 text-white">Agent Status</h2>
         <AgentStatus />
       </section>
+
       <section>
         <h2 className="text-xl font-semibold mb-4 text-white">Cron Jobs</h2>
         <div className="card">
-          {cronLoading ? (
-            <p className="text-sm text-[var(--text-muted)]">Loading...</p>
+          {connecting ? (
+            <p className="text-sm text-[var(--text-muted)]">Connecting...</p>
+          ) : !connected ? (
+            <p className="text-sm text-red-400">⚠ Not connected to gateway</p>
           ) : (
             <div className="space-y-3">
-              {jobs.map((job: Record<string, unknown>) => {
-                const state = job.state as Record<string, unknown> | undefined;
-                const isOk = state?.lastStatus === "ok";
-                const nextRun = state?.nextRunAtMs as number | undefined;
-                const lastDuration = state?.lastDurationMs as number | undefined;
+              {crons.map((job) => {
+                const isOk = job.lastStatus === "ok";
                 return (
                   <div
-                    key={job.id as string}
+                    key={job.id}
                     className="flex items-center justify-between text-sm py-2 border-b border-[var(--border)] last:border-0"
                   >
                     <div className="flex items-center gap-2">
-                      <span className={`w-1.5 h-1.5 rounded-full ${isOk ? "bg-[var(--green)]" : "bg-[var(--red)]"}`} />
-                      <span className="font-medium text-white">{job.name as string}</span>
+                      <span
+                        className={`w-1.5 h-1.5 rounded-full ${
+                          isOk ? "bg-[var(--green)]" : "bg-[var(--red)]"
+                        }`}
+                      />
+                      <span className="font-medium text-white">{job.name}</span>
                       {!job.enabled && (
                         <span className="tag tag-yellow">disabled</span>
                       )}
                     </div>
                     <div className="flex items-center gap-4 text-xs">
-                      {lastDuration && (
+                      <span className="text-[var(--text-muted)]">{job.schedule}</span>
+                      {job.lastDurationMs && (
                         <span className="text-[var(--text-muted)]">
-                          took {formatDuration(lastDuration)}
+                          took {formatDuration(job.lastDurationMs)}
                         </span>
                       )}
-                      {nextRun && (
+                      {job.nextRun && (
                         <span className="text-[var(--text-muted)]">
-                          next: {formatTime(nextRun)}
+                          next: {formatTime(job.nextRun)}
                         </span>
                       )}
                       <span className={isOk ? "tag tag-green" : "tag tag-red"}>
-                        {isOk ? "✓ ok" : `✗ ${state?.lastStatus || "unknown"}`}
+                        {isOk ? "✓ ok" : `✗ ${job.lastStatus || "unknown"}`}
                       </span>
                     </div>
                   </div>
                 );
               })}
-              {jobs.length === 0 && (
+              {crons.length === 0 && connected && (
                 <p className="text-sm text-[var(--text-muted)]">No cron jobs found</p>
               )}
             </div>
           )}
         </div>
       </section>
+
       <section>
         <h2 className="text-xl font-semibold mb-4 text-white">Service Health</h2>
         <div className="card text-sm">
-          {healthLoading ? (
-            <p className="text-[var(--text-muted)]">Loading...</p>
-          ) : healthData?.ok ? (
+          {connecting ? (
+            <p className="text-[var(--text-muted)]">Connecting...</p>
+          ) : connected ? (
             <div className="space-y-2">
-              <p className="text-[var(--green)]">✓ Gateway running</p>
-              {healthData.channels?.telegram?.probe?.ok && (
-                <p className="text-[var(--green)]">
-                  ✓ Telegram: @{healthData.channels.telegram.probe.bot?.username}
+              <p className="text-[var(--green)]">✓ Gateway connected</p>
+              <p className="text-[var(--text-muted)] text-xs">
+                URL: {gatewayUrl}
+              </p>
+              {lastUpdated && (
+                <p className="text-[var(--text-muted)] text-xs">
+                  Last updated: {formatTime(lastUpdated)}
                 </p>
               )}
-              <p className="text-[var(--text-muted)] text-xs">
-                Last checked: {formatTime(healthData.ts)}
-              </p>
             </div>
           ) : (
-            <p className="text-red-400">✗ Gateway health check failed</p>
+            <div className="space-y-2">
+              <p className="text-red-400">✗ Gateway connection failed</p>
+              {error && (
+                <p className="text-xs text-[var(--text-muted)]">{error}</p>
+              )}
+              <p className="text-xs text-[var(--text-muted)]">
+                Check settings (⚙️) to configure gateway URL
+              </p>
+            </div>
           )}
         </div>
       </section>

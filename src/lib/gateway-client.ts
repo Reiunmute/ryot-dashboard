@@ -3,6 +3,7 @@
 const DEFAULT_GATEWAY = "wss://reimini-macmini.tailfa1d9d.ts.net";
 const STORAGE_KEY = "openclaw-gateway-url";
 const TOKEN_KEY = "openclaw-gateway-token";
+const PROTOCOL_VERSION = 1;
 
 export function getGatewayUrl(): string {
   if (typeof window === "undefined") return DEFAULT_GATEWAY;
@@ -26,27 +27,41 @@ export function setGatewayToken(token: string): void {
   window.dispatchEvent(new Event("gateway-url-changed"));
 }
 
-interface RpcMessage {
-  jsonrpc: "2.0";
-  id: number;
+function uuid(): string {
+  return crypto.randomUUID();
+}
+
+interface RequestFrame {
+  type: "req";
+  id: string;
   method: string;
   params?: Record<string, unknown>;
 }
 
-interface RpcResponse {
-  jsonrpc: "2.0";
-  id: number;
-  result?: unknown;
+interface ResponseFrame {
+  type: "res";
+  id: string;
+  ok: boolean;
+  payload?: unknown;
   error?: { code: number; message: string };
 }
+
+interface EventFrame {
+  type: "evt";
+  event: string;
+  payload?: unknown;
+}
+
+type Frame = RequestFrame | ResponseFrame | EventFrame;
 
 export class GatewayClient {
   private ws: WebSocket | null = null;
   private url: string;
   private token: string;
   private requestId = 0;
-  private pending: Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }> = new Map();
+  private pending: Map<string, { resolve: (v: unknown) => void; reject: (e: Error) => void }> = new Map();
   private connectPromise: Promise<void> | null = null;
+  private connected = false;
 
   constructor(url?: string, token?: string) {
     this.url = url || getGatewayUrl();
@@ -54,33 +69,36 @@ export class GatewayClient {
   }
 
   async connect(): Promise<void> {
-    if (this.ws?.readyState === WebSocket.OPEN) return;
+    if (this.connected && this.ws?.readyState === WebSocket.OPEN) return;
     if (this.connectPromise) return this.connectPromise;
 
     this.connectPromise = new Promise((resolve, reject) => {
       try {
-        // Add token as query param if provided
-        let wsUrl = this.url;
-        if (this.token) {
-          const separator = wsUrl.includes("?") ? "&" : "?";
-          wsUrl = `${wsUrl}${separator}token=${encodeURIComponent(this.token)}`;
-        }
-        this.ws = new WebSocket(wsUrl);
+        this.ws = new WebSocket(this.url);
 
         this.ws.onopen = () => {
-          this.connectPromise = null;
-          resolve();
+          // Send connect handshake
+          this.sendConnectHandshake()
+            .then(() => {
+              this.connected = true;
+              this.connectPromise = null;
+              resolve();
+            })
+            .catch((err) => {
+              this.connectPromise = null;
+              reject(err);
+            });
         };
 
-        this.ws.onerror = (e) => {
+        this.ws.onerror = () => {
           this.connectPromise = null;
           reject(new Error("WebSocket connection failed"));
         };
 
         this.ws.onclose = () => {
           this.connectPromise = null;
+          this.connected = false;
           this.ws = null;
-          // Reject all pending requests
           this.pending.forEach(({ reject }) => {
             reject(new Error("Connection closed"));
           });
@@ -89,18 +107,10 @@ export class GatewayClient {
 
         this.ws.onmessage = (event) => {
           try {
-            const data = JSON.parse(event.data) as RpcResponse;
-            const pending = this.pending.get(data.id);
-            if (pending) {
-              this.pending.delete(data.id);
-              if (data.error) {
-                pending.reject(new Error(data.error.message));
-              } else {
-                pending.resolve(data.result);
-              }
-            }
+            const frame = JSON.parse(event.data) as Frame;
+            this.handleFrame(frame);
           } catch {
-            // Ignore non-JSON messages
+            // Ignore parse errors
           }
         };
       } catch (e) {
@@ -112,15 +122,74 @@ export class GatewayClient {
     return this.connectPromise;
   }
 
+  private handleFrame(frame: Frame): void {
+    if (frame.type === "res") {
+      const pending = this.pending.get(frame.id);
+      if (pending) {
+        this.pending.delete(frame.id);
+        if (frame.ok) {
+          pending.resolve(frame.payload);
+        } else {
+          pending.reject(new Error(frame.error?.message || "Unknown error"));
+        }
+      }
+    }
+    // Handle events if needed
+  }
+
+  private async sendConnectHandshake(): Promise<unknown> {
+    const id = uuid();
+    const frame: RequestFrame = {
+      type: "req",
+      id,
+      method: "connect",
+      params: {
+        minProtocol: PROTOCOL_VERSION,
+        maxProtocol: PROTOCOL_VERSION,
+        client: {
+          id: "ryot-dashboard",
+          displayName: "Ryot Dashboard",
+          version: "1.0.0",
+          platform: "browser",
+          mode: "backend",
+        },
+        caps: [],
+        auth: this.token ? { token: this.token } : undefined,
+        role: "operator",
+        scopes: ["operator.read"],
+      },
+    };
+
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        this.pending.delete(id);
+        reject(new Error("Connect handshake timeout"));
+      }, 10000);
+
+      this.pending.set(id, {
+        resolve: (v) => {
+          clearTimeout(timeout);
+          resolve(v);
+        },
+        reject: (e) => {
+          clearTimeout(timeout);
+          reject(e);
+        },
+      });
+
+      this.ws!.send(JSON.stringify(frame));
+    });
+  }
+
   async call<T = unknown>(method: string, params?: Record<string, unknown>): Promise<T> {
     await this.connect();
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       throw new Error("Not connected");
     }
 
-    const id = ++this.requestId;
-    const message: RpcMessage = {
-      jsonrpc: "2.0",
+    const id = uuid();
+    const frame: RequestFrame = {
+      type: "req",
       id,
       method,
       params,
@@ -143,7 +212,7 @@ export class GatewayClient {
         },
       });
 
-      this.ws!.send(JSON.stringify(message));
+      this.ws!.send(JSON.stringify(frame));
     });
   }
 
@@ -152,10 +221,11 @@ export class GatewayClient {
       this.ws.close();
       this.ws = null;
     }
+    this.connected = false;
   }
 
   isConnected(): boolean {
-    return this.ws?.readyState === WebSocket.OPEN;
+    return this.connected && this.ws?.readyState === WebSocket.OPEN;
   }
 }
 

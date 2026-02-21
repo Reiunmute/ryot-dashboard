@@ -147,11 +147,11 @@ export class GatewayClient {
         minProtocol: PROTOCOL_VERSION,
         maxProtocol: PROTOCOL_VERSION,
         client: {
-          id: "ryot-dashboard",
+          id: "webchat-ui",
           displayName: "Ryot Dashboard",
           version: "1.0.0",
           platform: "browser",
-          mode: "backend",
+          mode: "webchat",
         },
         caps: [],
         auth: this.token ? { token: this.token } : undefined,

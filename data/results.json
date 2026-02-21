@@ -1,0 +1,10 @@
+[
+  {"id":"r1","title":"Dashboard Character Sprites","type":"design","date":"2026-02-12T00:00:00.000Z","tags":["design","sprite"],"url":"","description":"대시보드용 포켓몬 캐릭터 스프라이트 제작"},
+  {"id":"r2","title":"Ryot Personal Site","type":"dev","date":"2026-02-11T00:00:00.000Z","tags":["dev","web"],"url":"","description":"개인 사이트 구축"},
+  {"id":"r3","title":"TZ Drop Converter","type":"dev","date":"2026-02-11T00:00:00.000Z","tags":["dev","tool"],"url":"","description":"타임존 드롭 변환기"},
+  {"id":"r4","title":"Flash Trade LTT Marketing","type":"xitadel","date":"2026-02-10T00:00:00.000Z","tags":["xitadel","marketing"],"url":"","description":"Flash Trade LTT 마케팅 자료"},
+  {"id":"r5","title":"x-research Skill Setup","type":"infra","date":"2026-02-11T00:00:00.000Z","tags":["infra","skill"],"url":"","description":"x-research 스킬 셋업"},
+  {"id":"r6","title":"ryot-dashboard 기본 구조","type":"dev","date":"2026-02-19T00:00:00.000Z","tags":["dev","dashboard"],"url":"","description":"대시보드 기본 구조 구축"},
+  {"id":"r7","title":"ryot-dashboard API 연동","type":"dev","date":"2026-02-19T00:00:00.000Z","tags":["dev","api"],"url":"","description":"OpenClaw API 연동"},
+  {"id":"r8","title":"크립토 스캠 배너 이미지","type":"design","date":"2026-02-19T00:00:00.000Z","tags":["design","crypto"],"url":"","description":"크립토 스캠 경고 배너 이미지 제작"}
+]

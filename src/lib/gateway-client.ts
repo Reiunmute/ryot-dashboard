@@ -156,7 +156,7 @@ export class GatewayClient {
         caps: [],
         auth: this.token ? { token: this.token } : undefined,
         role: "operator",
-        scopes: ["operator.read"],
+        scopes: ["operator.admin"],
       },
     };
 

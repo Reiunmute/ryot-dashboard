@@ -3,7 +3,7 @@
 const DEFAULT_GATEWAY = "wss://reimini-macmini.tailfa1d9d.ts.net";
 const STORAGE_KEY = "openclaw-gateway-url";
 const TOKEN_KEY = "openclaw-gateway-token";
-const PROTOCOL_VERSION = 1;
+const PROTOCOL_VERSION = 3;
 
 export function getGatewayUrl(): string {
   if (typeof window === "undefined") return DEFAULT_GATEWAY;
